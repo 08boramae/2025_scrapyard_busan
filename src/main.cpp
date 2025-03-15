@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <IRremote.hpp>
 
 // IR Receiver and LED pins
@@ -10,115 +11,57 @@
 #define IN3 10
 #define IN4 11
 
-// Motor control variables
-const int STEPS_PER_REVOLUTION = 4096;  // Full rotation for 28BYJ-48
-int currentStep = 0;
-boolean clockwise = true;
+// Motor control pins
+#define MOTOR_LEFT 3
+#define MOTOR_RIGHT 4
 
-// Function prototype declaration
-void moveStepperOneStep();
+// Relay pin
+#define RELAY_PIN 7
 
-void setup() {
+void setup() {  
   Serial.begin(9600);
-  Serial.println("IR Stepper Control Start");
+  Serial.println("System started");
   
-  // Setup pins
   pinMode(LED_TEST_LIGHT_PIN, OUTPUT);
-  pinMode(IN1, OUTPUT);
-  pinMode(IN2, OUTPUT);
-  pinMode(IN3, OUTPUT);
-  pinMode(IN4, OUTPUT);
-  
-  IrReceiver.begin(IR_RECEIVE_PIN, ENABLE_LED_FEEDBACK);
+  pinMode(MOTOR_LEFT, OUTPUT);
+  pinMode(RELAY_PIN, OUTPUT);
+
+  pinMode(IN1, INPUT);
+  pinMode(IN2, INPUT);
+  pinMode(IN3, INPUT);
+  pinMode(IN4, INPUT);
+
+  IrReceiver.begin(IR_RECEIVE_PIN);
+  IrReceiver.enableIRIn();
 }
 
 void loop() {
+  // IR signal received
   if (IrReceiver.decode()) {
-    Serial.println(IrReceiver.decodedIRData.decodedRawData, HEX);
+    uint32_t irCode = IrReceiver.decodedIRData.decodedRawData;
+    Serial.print("IR code received: 0x");
+    Serial.println(irCode, HEX);
     
-    if (IrReceiver.decodedIRData.decodedRawData == 0xE916FF00) {
+    // Forward command
+    if (irCode == 0xE916FF00) {
+      Serial.println("Water pump");
+      
+      digitalWrite(RELAY_PIN, HIGH);
       digitalWrite(LED_TEST_LIGHT_PIN, HIGH);
-      
-      // Complete one full rotation
-      for (int i = 0; i < STEPS_PER_REVOLUTION; i++) {
-        moveStepperOneStep();
-        delayMicroseconds(1200); // Optimal speed without missing steps
-      }
-      
+      delay(1000);
+      digitalWrite(RELAY_PIN, LOW);
       digitalWrite(LED_TEST_LIGHT_PIN, LOW);
-      
-      // Turn off all motor coils
-      digitalWrite(IN1, LOW);
-      digitalWrite(IN2, LOW);
-      digitalWrite(IN3, LOW);
-      digitalWrite(IN4, LOW);
+      IrReceiver.resume();
     }
-    
-    IrReceiver.resume();
+    else if (irCode == 0x7E755452) {
+      Serial.println("Go Forward");
+      digitalWrite(MOTOR_LEFT, HIGH);
+      digitalWrite(MOTOR_RIGHT, HIGH);
+      delay(1000);
+      digitalWrite(MOTOR_LEFT, LOW);
+      digitalWrite(MOTOR_RIGHT, LOW);
+      IrReceiver.resume();
+    }
   }
-  delay(100);
-}
-
-// Function to move the stepper motor one step
-void moveStepperOneStep() {
-  switch (currentStep) {
-    case 0:
-      digitalWrite(IN1, LOW);
-      digitalWrite(IN2, LOW);
-      digitalWrite(IN3, LOW);
-      digitalWrite(IN4, HIGH);
-      break;
-    case 1:
-      digitalWrite(IN1, LOW);
-      digitalWrite(IN2, LOW);
-      digitalWrite(IN3, HIGH);
-      digitalWrite(IN4, HIGH);
-      break;
-    case 2:
-      digitalWrite(IN1, LOW);
-      digitalWrite(IN2, LOW);
-      digitalWrite(IN3, HIGH);
-      digitalWrite(IN4, LOW);
-      break;
-    case 3:
-      digitalWrite(IN1, LOW);
-      digitalWrite(IN2, HIGH);
-      digitalWrite(IN3, HIGH);
-      digitalWrite(IN4, LOW);
-      break;
-    case 4:
-      digitalWrite(IN1, LOW);
-      digitalWrite(IN2, HIGH);
-      digitalWrite(IN3, LOW);
-      digitalWrite(IN4, LOW);
-      break;
-    case 5:
-      digitalWrite(IN1, HIGH);
-      digitalWrite(IN2, HIGH);
-      digitalWrite(IN3, LOW);
-      digitalWrite(IN4, LOW);
-      break;
-    case 6:
-      digitalWrite(IN1, HIGH);
-      digitalWrite(IN2, LOW);
-      digitalWrite(IN3, LOW);
-      digitalWrite(IN4, LOW);
-      break;
-    case 7:
-      digitalWrite(IN1, HIGH);
-      digitalWrite(IN2, LOW);
-      digitalWrite(IN3, LOW);
-      digitalWrite(IN4, HIGH);
-      break;
-    default:
-      digitalWrite(IN1, LOW);
-      digitalWrite(IN2, LOW);
-      digitalWrite(IN3, LOW);
-      digitalWrite(IN4, LOW);
-      break;
-  }
-
-  // Update step count for next step
-  currentStep = (currentStep + (clockwise ? 1 : -1)) % 8;
-  if (currentStep < 0) currentStep += 8; // Handle negative modulo
+  delay(200);
 }
